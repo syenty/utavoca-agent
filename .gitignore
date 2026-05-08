@@ -1,0 +1,21 @@
+# Credentials
+.env
+.env.*
+
+# Lyrics files — copyrighted content, not committed
+lyrics/*.txt
+archive/*.txt
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code — session artifacts only (agents/ and commands/ ARE committed)
+.claude/settings.local.json
