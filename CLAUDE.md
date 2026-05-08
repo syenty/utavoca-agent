@@ -8,15 +8,16 @@ Its sole job: turn raw lyrics files into validated vocabulary data and load it i
 ## What This Project Does
 
 ```
-lyrics/{아티스트}_{곡명}.txt
+[일본어 전용 가사]
+lyrics/raw/{아티스트}_{곡명}.txt
+        ↓ lyrics-converter   (한글 발음 + 번역 추가)
+        ↓ lyrics-reviewer ×N (clean 될 때까지 반복)
         ↓
-  (Claude processes)
-        ↓
-  vocab JSONB + song summary
-        ↓
-  Supabase INSERT → utavoca app
-        ↓
-  move file → archive/
+lyrics/{아티스트}_{곡명}.txt  ← [3행 포맷 확정]
+        ↓ vocab-extractor + summary-writer  (병렬)
+        ↓ vocab-validator ×N               (clean 될 때까지 반복)
+        ↓ db-operator                      (INSERT)
+        ↓ archivist                        (mv archive/)
 ```
 
 ---
@@ -63,6 +64,18 @@ Example:
 | 요약만 생성 | `lyrics/XXX.txt 곡 요약만 써줘` |
 | 어휘 미리 보기 (커밋 없이) | `lyrics/XXX.txt 어휘 뽑아서 보여줘만 줘. 저장은 하지 마` |
 
+### 파이프라인 실행 전 셋업 — 가사 포맷 변환
+
+일본어 전용 가사 파일은 먼저 `lyrics-converter`로 변환한 뒤 파이프라인을 실행합니다.
+
+| 상황 | 프롬프트 |
+|------|---------|
+| 특정 파일 변환 | `lyrics/raw/Novelbright_イマナンドモ.txt 변환해줘` |
+| raw/ 전체 변환 | `lyrics/raw/ 전부 변환해줘` |
+| 변환 후 바로 파이프라인 실행 | `lyrics/raw/XXX.txt 변환하고 바로 처리해줘` |
+
+변환 결과는 `lyrics/{파일명}`에 저장되고 원본 `lyrics/raw/{파일명}`은 유지됩니다.
+
 ### 파이프라인 실행 전 셋업 — 아티스트 관리
 
 가사 파일을 처리하기 전에 해당 아티스트가 DB에 등록되어 있어야 합니다.
@@ -91,15 +104,71 @@ Example:
 
 ## Agent Team
 
-This project uses five specialized subagents. Claude acts as **Orchestrator** and dispatches them.
+This project uses seven specialized subagents. Claude acts as **Orchestrator** and dispatches them.
+
+**셋업 에이전트** (파이프라인 실행 전)
+
+| Agent | 역할 | 툴 | 모델 |
+|-------|------|----|------|
+| `lyrics-converter` | 일본어 전용 가사 → 3행 포맷 변환 | Read, Write | Sonnet |
+| `lyrics-reviewer` | 3행 포맷 가사 품질 검수·교정 (반복 실행) | Read, Write | Sonnet |
+| `db-operator` | 아티스트 UUID 조회 + 아티스트/song INSERT | Read, Bash | Haiku |
+
+**파이프라인 에이전트** (lyrics/ 처리)
 
 | Agent | 역할 | 툴 | 모델 |
 |-------|------|----|------|
 | `vocab-extractor` | 가사에서 어휘 후보 추출 | Read | Sonnet |
 | `summary-writer` | 한국어 곡 요약 생성 | Read | Sonnet |
-| `vocab-validator` | 어휘 품질 규칙 검증·교정 | Read | Sonnet |
-| `db-operator` | 아티스트 UUID 조회 + song INSERT | Read, Bash | Haiku |
+| `vocab-validator` | 어휘 품질 규칙 검증·교정 (반복 실행) | Read | Sonnet |
 | `archivist` | 처리 완료 파일 archive/ 이동 | Bash | Haiku |
+
+---
+
+## Conversion Pipeline Routing Rules
+
+`lyrics/raw/` 파일 변환 요청이 오면 아래 순서로 에이전트를 라우팅합니다.
+
+### Step 1 — 변환 (lyrics-converter)
+
+```
+Agent(lyrics-converter) ← lyrics/raw/{파일명} 경로 전달
+```
+
+`lyrics-converter`는 일본어 전용 파일을 읽어 한글 발음 + 한국어 번역을 추가한 3행 포맷으로 변환한 뒤 `lyrics/{파일명}`에 저장합니다.
+
+### Step 2 — 검수 루프 (lyrics-reviewer)
+
+`lyrics-reviewer`를 **status가 `"clean"`이 될 때까지** 반복 실행합니다.
+
+```
+loop:
+  result ← Agent(lyrics-reviewer, lyrics/{파일명})
+  if result.status == "clean": break
+  # lyrics-reviewer가 직접 파일을 수정하므로 다음 라운드도 같은 경로 전달
+→ 3행 포맷 확정
+```
+
+`lyrics-reviewer`는 교정이 필요한 경우 파일을 직접 수정하고 `{"status": "corrected"}`를 반환합니다.  
+`"clean"`이 반환되면 루프를 종료합니다.
+
+### Step 3 — 이후 처리 (선택)
+
+변환·검수 완료 후 바로 파이프라인을 실행하도록 요청받은 경우:
+```
+→ 메인 파이프라인(Orchestration Routing Rules)으로 진행
+   대상 파일: lyrics/{파일명}
+```
+"변환만 해줘" 요청이면 Step 2에서 종료합니다.
+
+### 타임라인 요약 (변환 단계)
+```
+t=0  lyrics/raw/{파일명} 변환 요청
+t=1  lyrics-converter 실행 → lyrics/{파일명} 생성
+t=2  lyrics-reviewer 1회차 → {"status": "corrected"|"clean"}
+t=K  lyrics-reviewer status=="clean" → 루프 종료
+t=K+1  [선택] 메인 파이프라인 시작
+```
 
 ---
 
@@ -290,10 +359,14 @@ These rules apply during both extraction and review:
 
 ```
 utavoca-agent/
-├── CLAUDE.md          # This file
-├── lyrics/            # Unprocessed lyrics files — process these
-│   └── {アーティスト名}_{曲名}.txt
-└── archive/           # Processed lyrics (do not reprocess)
+├── CLAUDE.md                        # This file
+├── .claude/
+│   └── agents/                      # 서브에이전트 정의 (7개)
+├── lyrics/
+│   ├── raw/                         # 일본어 전용 원문 (변환 전)
+│   │   └── {アーティスト名}_{曲名}.txt
+│   └── {アーティスト名}_{曲名}.txt   # 3행 포맷 (파이프라인 대기)
+└── archive/                         # 처리 완료 파일
     └── {アーティスト名}_{曲名}.txt
 ```
 
