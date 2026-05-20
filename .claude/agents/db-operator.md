@@ -17,14 +17,19 @@ Never print the service role key in your output.
 ## Task A: Artist UUID Lookup
 
 ```bash
-curl -s "{SUPABASE_URL}/rest/v1/artists?name=eq.{ARTIST_NAME}&select=id,name" \
+curl -s -X POST "{SUPABASE_URL}/rest/v1/rpc/search_artists_fuzzy" \
   -H "apikey: {SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer {SERVICE_ROLE_KEY}"
+  -H "Authorization: Bearer {SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"search_query": "{ARTIST_NAME}"}'
 ```
 
-- URL-encode the artist name if it contains non-ASCII characters
-- If result is empty array → report "아티스트를 찾을 수 없습니다: {name}" and stop
-- If found → return the UUID
+응답은 `similarity_score` 내림차순 배열입니다. 결과 처리 규칙:
+
+- 결과 0개 → "아티스트를 찾을 수 없습니다: {name}" 보고 후 중단
+- 결과 1개 → 해당 UUID 사용
+- 결과 2개 이상이고 1위 score ≥ 0.8 → 1위 UUID 자동 선택, 오케스트레이터에 선택 결과 보고
+- 결과 2개 이상이고 1위 score < 0.8 → 상위 3개를 오케스트레이터에 보고하고 선택 대기
 
 ## Task B: Song INSERT
 

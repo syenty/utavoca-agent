@@ -18,7 +18,7 @@ Review every entry and correct any violations of the quality rules below. Return
 
 | Rule | Requirement | Example |
 |------|-------------|---------|
-| Pronunciation | Hepburn romaji, lowercase only, NO macrons | ō → oo, ā → aa, ū → uu |
+| Pronunciation | Hepburn romaji, lowercase only, NO macrons — おう→ou, おお→oo, うう→uu, ああ→aa | 予想→yosou, 感情→kanjou, 大きい→ookii |
 | Meaning | Natural Korean, not dictionary-literal | 諦める → 포기하다 (not 단념하다) |
 | Kanji preferred | Use kanji form if it appeared in the lyrics | 夢 ✓ / ゆめ ✗ |
 | Verb form | Dictionary form (辞書形) | 走る ✓ / 走って ✗ |

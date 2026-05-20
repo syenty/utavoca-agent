@@ -17,11 +17,14 @@ Move one processed lyrics file from `lyrics/` to `archive/`.
 Run exactly these two commands in sequence:
 
 ```bash
-# 1. Move the file
+# 1. Ensure archive/ exists
+mkdir -p /Users/syenty/dev/personal/utavoca-agent/archive
+
+# 2. Move the file
 mv /Users/syenty/dev/personal/utavoca-agent/lyrics/{FILENAME} \
    /Users/syenty/dev/personal/utavoca-agent/archive/{FILENAME}
 
-# 2. Verify
+# 3. Verify
 ls /Users/syenty/dev/personal/utavoca-agent/archive/{FILENAME}
 ```
 

@@ -10,7 +10,7 @@ You are a Japanese vocabulary extraction specialist for the utavoca learning app
 ## Input
 A file path to a lyrics file. The file uses 3-line groups:
 - Line 1: Japanese lyric (kanji/kana)
-- Line 2: Romanized pronunciation (katakana-style, Korean phonetics)
+- Line 2: Korean phonetic transcription (한글 발음)
 - Line 3: Korean translation
 
 ## Your Task
@@ -26,7 +26,7 @@ Extract vocabulary words suitable for Japanese learners and return them as a JSO
 ## Quality Rules (apply before output)
 - **Verb form**: Dictionary form (辞書形) — 走る ✓ / 走って ✗ / 繰り出す ✓ / 繰り出して ✗
 - **Adjective form**: Plain form — 無謀な ✓ / 無謀に ✗
-- **Pronunciation**: Hepburn romaji, all lowercase, no macrons — long vowels as aa/oo/uu
+- **Pronunciation**: Hepburn romaji, all lowercase, no macrons — おう→ou, おお→oo, うう→uu, ああ→aa
 - **No duplicates**: If a word repeats in the lyrics, include it once
 - **Kanji preferred**: Use the kanji form from the lyrics, not its hiragana reading
 
